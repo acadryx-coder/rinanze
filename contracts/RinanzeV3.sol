@@ -38,7 +38,7 @@ contract RinanzeV2 is
     event Minted(address indexed to, uint256 amount);
     event NameChanged(string oldName, string newName);
     event SymbolChanged(string oldSymbol, string newSymbol);
-    event TraderRestrictionUpdated(bool active); // NEW EVENT
+    event TraderRestrictionUpdated(bool active);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -64,9 +64,9 @@ contract RinanzeV2 is
         _grantRole(PAUSER_ROLE, msg.sender);
     }
 
-    // NEW V2 INITIALIZER: Call this during the upgrade process to set the default toggle state
+    // NEW V2 INITIALIZER: Set to false initially
     function initializeV2() external reinitializer(2) {
-        traderRestrictionActive = true; // Set to true or false depending on your needs
+        traderRestrictionActive = false; 
     }
 
     // ----- Name & Symbol updaters (only owner) -----

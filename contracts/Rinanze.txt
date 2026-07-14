@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract Rinanze is
+contract RinanzeV2 is
     Initializable,
     ERC20Upgradeable,
     ERC20PausableUpgradeable,
@@ -29,12 +29,16 @@ contract Rinanze is
     // Storage for frozen wallets
     mapping(address => bool) private _frozenWallets;
 
+    // NEW STORAGE: Must be appended after existing storage to prevent collision
+    bool public traderRestrictionActive;
+
     // Events
     event WalletFrozen(address indexed account);
     event WalletUnfrozen(address indexed account);
     event Minted(address indexed to, uint256 amount);
     event NameChanged(string oldName, string newName);
     event SymbolChanged(string oldSymbol, string newSymbol);
+    event TraderRestrictionUpdated(bool active); // NEW EVENT
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -51,17 +55,18 @@ contract Rinanze is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        // Set mutable name & symbol
         _name = name_;
         _symbol = symbol_;
 
-        // Grant roles to the owner (deployer)
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
         _grantRole(FREEZER_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
+    }
 
-        // TRADER_ROLE is intentionally NOT granted – remains false initially
+    // NEW V2 INITIALIZER: Call this during the upgrade process to set the default toggle state
+    function initializeV2() external reinitializer(2) {
+        traderRestrictionActive = true; // Set to true or false depending on your needs
     }
 
     // ----- Name & Symbol updaters (only owner) -----
@@ -77,7 +82,6 @@ contract Rinanze is
         emit SymbolChanged(old, newSymbol);
     }
 
-    // Override name() and symbol() to use mutable storage
     function name() public view virtual override returns (string memory) {
         return _name;
     }
@@ -112,6 +116,12 @@ contract Rinanze is
         _unpause();
     }
 
+    // NEW FUNCTION: Toggle the trader restriction
+    function setTraderRestriction(bool active) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        traderRestrictionActive = active;
+        emit TraderRestrictionUpdated(active);
+    }
+
     // ----- Internal Overrides -----
     function _update(address from, address to, uint256 value)
         internal
@@ -120,12 +130,10 @@ contract Rinanze is
         // 1. Freeze check
         require(!_frozenWallets[from] && !_frozenWallets[to], "Wallet is frozen");
 
-        // 2. Transfer restriction – only for non-mint/burn operations
-        if (from != address(0) && to != address(0)) {
-            // Sender MUST have TRADER_ROLE
+        // 2. Transfer restriction – Applied ONLY if traderRestrictionActive is true
+        if (traderRestrictionActive && from != address(0) && to != address(0)) {
             require(hasRole(TRADER_ROLE, from), "Sender lacks TRADER_ROLE");
 
-            // Receiver must have TRADER_ROLE, EXCEPT if it currently holds 0 tokens
             if (!hasRole(TRADER_ROLE, to)) {
                 require(balanceOf(to) == 0, "Receiver has balance but lacks TRADER_ROLE");
             }

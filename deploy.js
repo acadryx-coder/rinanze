@@ -16,8 +16,8 @@ async function main() {
   console.log("BNB:", ethers.formatEther(await provider.getBalance(wallet.address)));
 
   // 1. Load implementation (Rinanze)
-  const implBytecode = fs.readFileSync("Rinanze_bytecode.txt", "utf8").trim();
-  const implAbi = JSON.parse(fs.readFileSync("Rinanze_abi.json", "utf8"));
+  const implBytecode = fs.readFileSync("a.txt", "utf8").trim();
+  const implAbi = JSON.parse(fs.readFileSync("a.json", "utf8"));
 
   // 2. Load proxy (ERC1967Proxy)
   const proxyBytecode = fs.readFileSync("ERC1967Proxy_bytecode.txt", "utf8").trim();

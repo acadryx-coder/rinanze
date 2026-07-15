@@ -231,25 +231,6 @@
 		"inputs": [
 			{
 				"indexed": false,
-				"internalType": "uint256",
-				"name": "oldCap",
-				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "newCap",
-				"type": "uint256"
-			}
-		],
-		"name": "CapUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
 				"internalType": "uint64",
 				"name": "version",
 				"type": "uint64"
@@ -439,6 +420,19 @@
 			}
 		],
 		"name": "SymbolChanged",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "bool",
+				"name": "active",
+				"type": "bool"
+			}
+		],
+		"name": "TraderRestrictionUpdated",
 		"type": "event"
 	},
 	{
@@ -672,19 +666,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "cap",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "decimals",
 		"outputs": [
 			{
@@ -784,6 +765,13 @@
 			}
 		],
 		"name": "initialize",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "initializeV2",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -924,19 +912,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "newCap",
-				"type": "uint256"
-			}
-		],
-		"name": "setCap",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "string",
 				"name": "newName",
 				"type": "string"
@@ -956,6 +931,19 @@
 			}
 		],
 		"name": "setSymbol",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bool",
+				"name": "active",
+				"type": "bool"
+			}
+		],
+		"name": "setTraderRestriction",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -1000,6 +988,19 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "traderRestrictionActive",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",

@@ -6,17 +6,13 @@
 <title>Rinanze (RIN) — Token Portal</title>
 <meta name="description" content="Connect, hold, and move RIN — the Rinanze token on BNB Smart Chain." />
 
-<!-- Fonts: Space Grotesk for display, Inter for UI text, JetBrains Mono for addresses & figures -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- ethers v5 UMD, pinned to a stable jsdelivr build. The previous build pointed at
-     cdn.ethers.io, which no longer reliably serves this file — that's why "ethers" was
-     undefined and every connect attempt died with a silent "Connection failed." -->
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-<!-- Client-side QR rendering for the Receive modal — no data ever leaves the browser -->
+<!-- Client-side QR rendering – we handle missing library gracefully now -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <style>
@@ -123,7 +119,6 @@
 
   .count-up { transition: opacity .2s; }
 
-  /* Toasts */
   #toastStack {
     position: fixed; top: 1rem; right: 1rem; left: 1rem;
     display: flex; flex-direction: column; align-items: flex-end; gap: .5rem;
@@ -208,7 +203,7 @@
 
 <div id="toastStack"></div>
 
-<!-- Live price strip — real on-chain market data, not decoration -->
+<!-- Live price strip – powered by DexScreener, uses your pair address as fallback -->
 <div id="tickerWrap" class="w-full max-w-lg mb-3">
   <div class="glass px-4 py-3">
     <div class="flex items-center justify-between text-xs">
@@ -262,7 +257,7 @@
     </div>
   </div>
 
-  <!-- no-wallet-detected banner (hidden until we know there's no injected provider) -->
+  <!-- no-wallet-detected banner -->
   <div id="noWalletBanner" class="hidden rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-200 space-y-2">
     <p>We couldn't find a wallet in this browser. Open Rinanze inside a wallet app, or install a browser wallet.</p>
     <div class="flex flex-wrap gap-2 pt-0.5">
@@ -350,17 +345,17 @@
 <script>
   // ================= CONFIG =================
   const PROXY_ADDRESS = "0xBdf9e9B29720389EeBf9b6D95a5077341E66114c";
+  const PAIR_ADDRESS = "0xF474AbC7A04DD87382614FE996B08f492257CB12"; // your PancakeSwap V2 pair
   const CHAIN_ID = 56;                       // BNB Smart Chain
   const CHAIN_HEX = "0x" + CHAIN_ID.toString(16);
   const EXPLORER = "https://bscscan.com";
   const PUBLIC_RPC = "https://bsc-dataseed.binance.org/";
   const PANCAKE_SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${PROXY_ADDRESS}&chainId=${CHAIN_ID}`;
-  const DEXSCREENER_URL = `https://api.dexscreener.com/latest/dex/tokens/${PROXY_ADDRESS}`;
+  const DEXSCREENER_TOKEN_URL = `https://api.dexscreener.com/latest/dex/tokens/${PROXY_ADDRESS}`;
+  const DEXSCREENER_PAIR_URL = `https://api.dexscreener.com/latest/dex/pairs/bsc/${PAIR_ADDRESS}`;
   const TOKEN_LOGO_URL = "";   // optional — square PNG/SVG shown when adding RIN to a wallet
 
   // Optional — powers the "Your recent activity" panel via Etherscan's multichain v2
-  // API (the same one BscScan runs on). Get a free key at bscscan.com/myapikey and it
-  // works across BscScan/Etherscan/Basescan etc. Leave blank to hide that panel.
   const ETHERSCAN_API_KEY = "";
   const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
 
@@ -378,11 +373,11 @@
 
   // ================= STATE =================
   let provider, signer, contract, userAddress;
-  let readContract = null;      // read-only, works before any wallet connects
+  let readContract = null;
   let decimals = 18;
   let symbol = "RIN";
   let lastPriceUsd = null;
-  let pairAddress = null;
+  let pairAddress = PAIR_ADDRESS;   // we already know it
   let chartLoaded = false;
 
   // ================= DOM =================
@@ -403,7 +398,7 @@
   const receiveQr = $('receiveQr'), receiveCopyBtn = $('receiveCopyBtn'), receiveHint = $('receiveHint');
   const activityPanel = $('activityPanel'), activityList = $('activityList');
 
-  // ================= TOASTS (replaces blocking alert()) =================
+  // ================= TOASTS =================
   function toast(message, kind = 'info', timeout = 5000) {
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
@@ -412,7 +407,6 @@
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 250); }, timeout);
   }
 
-  // Turn raw provider/RPC errors into something a person can act on.
   function friendlyError(e) {
     const code = e?.code;
     const msg = (e?.reason || e?.data?.message || e?.message || String(e) || '').toString();
@@ -434,15 +428,14 @@
     toast('Address copied', 'success', 2000);
   });
 
-  // Deep links so mobile visitors without a wallet extension can open the page
-  // inside their wallet app's own browser instead of hitting a dead end.
+  // Deep links
   (function setupDeepLinks() {
     const here = window.location.href.replace(/^https?:\/\//, '');
     $('mmDeepLink').href = `https://metamask.app.link/dapp/${here}`;
     $('twDeepLink').href = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`;
   })();
 
-  // ================= READ-ONLY BOOTSTRAP (no wallet needed) =================
+  // ================= READ-ONLY BOOTSTRAP =================
   async function bootstrapReadOnly() {
     try {
       const ro = new ethers.providers.JsonRpcProvider(PUBLIC_RPC);
@@ -470,16 +463,27 @@
 
   async function refreshTicker() {
     try {
-      const res = await fetch(DEXSCREENER_URL);
-      const data = await res.json();
-      const pairs = (data.pairs || []).filter(p => p.chainId === 'bsc');
+      // Try token endpoint first, then pair endpoint. Once DexScreener indexes your pair,
+      // at least one of them will return data.
+      let res = await fetch(DEXSCREENER_TOKEN_URL);
+      let data = await res.json();
+      let pairs = (data.pairs || []).filter(p => p.chainId === 'bsc');
+
       if (!pairs.length) {
-        tickerBody.innerHTML = '<span class="text-gray-500">not listed for trading yet</span>';
+        // Fallback to pair address directly
+        res = await fetch(DEXSCREENER_PAIR_URL);
+        data = await res.json();
+        pairs = (data.pairs || []).filter(p => p.chainId === 'bsc');
+      }
+
+      if (!pairs.length) {
+        tickerBody.innerHTML = '<span class="text-gray-500">Market data indexing… check back soon</span>';
         liveDot.style.background = 'var(--ink-dim)';
         statsRow.classList.add('hidden');
         chartToggle.classList.add('hidden');
         return;
       }
+
       pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
       const top = pairs[0];
       pairAddress = top.pairAddress;
@@ -549,7 +553,7 @@
       connectBtnLabel.textContent = userAddress.slice(0, 6) + '…' + userAddress.slice(-4);
       connectBtn.disabled = false;
       addToWalletBtn.classList.remove('hidden');
-      refreshReceiveModal();
+      refreshReceiveModal();   // Safe now – handles missing QRCode
 
       await Promise.all([updateBalance(), checkAdmin(), refreshActivity()]);
     } catch (e) {
@@ -641,17 +645,24 @@
     amountInput.value = ethers.utils.formatUnits(raw, decimals);
   });
 
-  // ================= RECEIVE MODAL =================
+  // ================= RECEIVE MODAL (QRCode-safe) =================
   function refreshReceiveModal() {
     if (!userAddress) return;
     receiveHint.classList.add('hidden');
     receiveCopyBtn.textContent = userAddress;
     receiveQr.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    receiveQr.appendChild(canvas);
-    QRCode.toCanvas(canvas, userAddress, { width: 200, margin: 1 }, (err) => {
-      if (err) receiveQr.innerHTML = '<p class="text-xs text-red-400 p-4">Couldn\'t generate a QR code.</p>';
-    });
+    if (typeof QRCode !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      receiveQr.appendChild(canvas);
+      QRCode.toCanvas(canvas, userAddress, { width: 200, margin: 1 }, (err) => {
+        if (err) {
+          receiveQr.innerHTML = '<p class="text-xs text-gray-500 mt-2">QR code unavailable</p>';
+        }
+      });
+    } else {
+      // Library didn't load – show graceful fallback instead of crashing
+      receiveQr.innerHTML = '<p class="text-xs text-gray-500 mt-2">QR code unavailable in this browser</p>';
+    }
   }
 
   receiveBtn.addEventListener('click', () => {
@@ -670,7 +681,7 @@
     toast('Address copied', 'success', 2000);
   });
 
-  // ================= MY ACTIVITY (optional, needs ETHERSCAN_API_KEY) =================
+  // ================= MY ACTIVITY =================
   async function refreshActivity() {
     if (!ETHERSCAN_API_KEY || !userAddress) { activityPanel.classList.add('hidden'); return; }
     try {
@@ -793,7 +804,6 @@
       if (accounts.length > 0) connectWallet();
     }).catch(() => {});
 
-    // Update state in place instead of a jarring full-page reload.
     window.ethereum.on('accountsChanged', (accounts) => {
       if (!accounts.length) {
         userAddress = null; contract = null;

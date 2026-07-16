@@ -1,179 +1,373 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rinanze (RIN) — Public Portal</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init()</script>
-  <style>
-    /* glass-morphism & custom tweaks */
-    body {
-      background: radial-gradient(circle at 20% 30%, #0b0f1a, #05070c);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      margin: 0;
-      padding: 1rem;
-    }
-    .glass {
-      background: rgba(255, 255, 255, 0.04);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 2rem;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-    }
-    .input-glass {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: white;
-      transition: all 0.2s;
-    }
-    .input-glass:focus {
-      outline: none;
-      border-color: #7c5cfc;
-      box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.2);
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, #7c5cfc, #5b3cdb);
-      transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .btn-primary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 20px rgba(124, 92, 252, 0.3);
-    }
-    .btn-primary:disabled {
-      opacity: 0.5;
-      transform: none;
-    }
-    .trade-btn {
-      background: #1e9b4a;
-    }
-    .trade-btn:hover {
-      background: #15803d;
-      transform: translateY(-1px);
-    }
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-    }
-    .modal-content {
-      width: 96%;
-      max-width: 480px;
-      height: 85vh;
-      max-height: 700px;
-      background: #0b0f1a;
-      border-radius: 24px;
-      overflow: hidden;
-      position: relative;
-    }
-    .modal-content iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-    .close-modal {
-      position: absolute;
-      top: 8px;
-      right: 16px;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      border: none;
-      font-size: 28px;
-      cursor: pointer;
-      padding: 0 8px;
-      border-radius: 8px;
-      z-index: 10;
-    }
-    .close-modal:hover {
-      background: rgba(0,0,0,0.8);
-    }
-    /* spinner */
-    .spinner {
-      display: inline-block;
-      width: 1rem;
-      height: 1rem;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top: 2px solid white;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rinanze (RIN) — Token Portal</title>
+<meta name="description" content="Connect, hold, and move RIN — the Rinanze token on BNB Smart Chain." />
+
+<!-- Fonts: Space Grotesk for display, Inter for UI text, JetBrains Mono for addresses & figures -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- ethers v5 UMD, pinned to a stable jsdelivr build. The previous build pointed at
+     cdn.ethers.io, which no longer reliably serves this file — that's why "ethers" was
+     undefined and every connect attempt died with a silent "Connection failed." -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<!-- Client-side QR rendering for the Receive modal — no data ever leaves the browser -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<style>
+  :root {
+    --void: #05070c;
+    --void-2: #0b0f1a;
+    --glass: rgba(255,255,255,0.045);
+    --glass-border: rgba(255,255,255,0.08);
+    --violet: #7c5cfc;
+    --violet-deep: #5b3cdb;
+    --bnb: #f0b90b;
+    --up: #16c784;
+    --down: #ea3943;
+    --ink: #f2f3f7;
+    --ink-dim: #8b93a7;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background:
+      radial-gradient(circle at 15% 0%, rgba(124,92,252,0.16), transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(240,185,11,0.07), transparent 40%),
+      radial-gradient(circle at 20% 30%, var(--void-2), var(--void));
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    margin: 0;
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .font-display { font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1.75rem;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8);
+  }
+
+  .input-glass {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.85rem;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .input-glass::placeholder { color: rgba(242,243,247,0.3); font-family: 'Inter', sans-serif; }
+  .input-glass:focus {
+    outline: none;
+    border-color: var(--violet);
+    box-shadow: 0 0 0 3px rgba(124,92,252,0.2);
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--violet), var(--violet-deep));
+    transition: transform .15s, box-shadow .15s, opacity .15s;
+  }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(124,92,252,.35); }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn-primary:focus-visible, .btn-ghost:focus-visible, .btn-buy:focus-visible {
+    outline: 2px solid var(--violet); outline-offset: 2px;
+  }
+
+  .btn-ghost {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    transition: background .15s, transform .15s;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+
+  .btn-buy {
+    background: rgba(240,185,11,0.1);
+    border: 1px solid rgba(240,185,11,0.35);
+    color: var(--bnb);
+    transition: background .15s, transform .15s;
+  }
+  .btn-buy:hover { background: rgba(240,185,11,0.16); transform: translateY(-1px); }
+
+  .pulse-dot {
+    width: 7px; height: 7px; border-radius: 999px; background: var(--up);
+    box-shadow: 0 0 0 0 rgba(22,199,132,.6);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(22,199,132,.55); }
+    70%  { box-shadow: 0 0 0 6px rgba(22,199,132,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,199,132,0); }
+  }
+
+  .spinner {
+    display: inline-block; width: 1rem; height: 1rem;
+    border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .count-up { transition: opacity .2s; }
+
+  /* Toasts */
+  #toastStack {
+    position: fixed; top: 1rem; right: 1rem; left: 1rem;
+    display: flex; flex-direction: column; align-items: flex-end; gap: .5rem;
+    z-index: 60; pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    max-width: 22rem; width: 100%;
+    background: #10131f; border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--violet);
+    border-radius: .85rem; padding: .7rem .9rem;
+    font-size: .82rem; line-height: 1.35;
+    box-shadow: 0 15px 30px -10px rgba(0,0,0,.6);
+    animation: toast-in .18s ease-out;
+  }
+  .toast.error { border-left-color: var(--down); }
+  .toast.success { border-left-color: var(--up); }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-dot, .spinner, .toast { animation: none !important; }
+  }
+
+  .stat-mini { text-align: center; }
+  .stat-mini .label { color: var(--ink-dim); font-size: .65rem; text-transform: uppercase; letter-spacing: .04em; }
+  .stat-mini .value { font-size: .78rem; margin-top: .1rem; }
+
+  .chart-toggle {
+    color: var(--ink-dim); font-size: .72rem;
+    display: flex; align-items: center; gap: .25rem;
+    transition: color .15s; cursor: pointer; background: none; border: none; padding: 0;
+  }
+  .chart-toggle:hover { color: var(--ink); }
+  .chart-toggle .chev { transition: transform .2s; display: inline-block; }
+  .chart-toggle.open .chev { transform: rotate(180deg); }
+
+  #chartFrame { width: 100%; height: 360px; border: none; border-radius: .85rem; }
+
+  .max-chip {
+    position: absolute; right: .5rem; top: 50%; transform: translateY(-50%);
+    background: rgba(124,92,252,0.16); color: var(--violet);
+    font-size: .65rem; font-weight: 600; letter-spacing: .03em;
+    padding: .2rem .5rem; border-radius: .5rem; border: none; cursor: pointer;
+    transition: background .15s;
+  }
+  .max-chip:hover { background: rgba(124,92,252,0.28); }
+
+  .icon-btn {
+    width: 2.25rem; height: 2.25rem; display: flex; align-items: center; justify-content: center;
+    border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
+    transition: background .15s, transform .15s; color: var(--ink);
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; z-index: 55; padding: 1rem;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    width: 100%; max-width: 22rem; background: #0b0f1a; border: 1px solid var(--glass-border);
+    border-radius: 1.5rem; padding: 1.75rem; text-align: center; position: relative;
+  }
+  .modal-close {
+    position: absolute; top: .75rem; right: .75rem; background: rgba(255,255,255,0.06);
+    border: none; color: var(--ink-dim); width: 1.75rem; height: 1.75rem; border-radius: 999px;
+    cursor: pointer; font-size: 1rem; line-height: 1;
+  }
+  .modal-close:hover { color: var(--ink); }
+
+  .activity-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .55rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: .78rem;
+  }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-dir { font-size: .65rem; padding: .1rem .4rem; border-radius: .35rem; font-weight: 600; }
+  .activity-dir.in { background: rgba(22,199,132,0.14); color: var(--up); }
+  .activity-dir.out { background: rgba(234,57,67,0.14); color: var(--down); }
+</style>
 </head>
 <body>
 
-<div class="glass w-full max-w-lg p-6 sm:p-8 space-y-6 text-white">
+<div id="toastStack"></div>
+
+<!-- Live price strip — real on-chain market data, not decoration -->
+<div id="tickerWrap" class="w-full max-w-lg mb-3">
+  <div class="glass px-4 py-3">
+    <div class="flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2">
+        <span class="pulse-dot" id="liveDot"></span>
+        <span class="text-gray-400 font-mono tracking-wide">RIN/BNB</span>
+        <span class="text-gray-600">·</span>
+        <span class="text-gray-500">PancakeSwap</span>
+      </div>
+      <div id="tickerBody" class="flex items-center gap-2 font-mono">
+        <span class="text-gray-500">loading price…</span>
+      </div>
+    </div>
+
+    <div id="statsRow" class="hidden mt-3 pt-3 border-t border-white/5 grid grid-cols-3 gap-2">
+      <div class="stat-mini"><div class="label">Market Cap</div><div class="value font-mono" id="statMcap">—</div></div>
+      <div class="stat-mini"><div class="label">Liquidity</div><div class="value font-mono" id="statLiq">—</div></div>
+      <div class="stat-mini"><div class="label">24h Volume</div><div class="value font-mono" id="statVol">—</div></div>
+    </div>
+
+    <div class="mt-3 pt-3 border-t border-white/5">
+      <button id="chartToggle" class="chart-toggle hidden">
+        <span class="chev">▾</span> <span id="chartToggleLabel">Show price chart</span>
+      </button>
+      <div id="chartContainer" class="hidden mt-3"></div>
+    </div>
+  </div>
+</div>
+
+<div class="glass w-full max-w-lg p-6 sm:p-8 space-y-6">
+
   <!-- header -->
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight">Rinanze <span class="text-sm font-normal text-gray-400">RIN</span></h1>
-      <p class="text-xs text-gray-400 mt-0.5">BNB Smart Chain</p>
+      <h1 class="font-display text-2xl font-semibold tracking-tight">
+        Rinanze <span class="text-sm font-normal text-gray-400 font-mono">RIN</span>
+      </h1>
+      <p class="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background:var(--bnb)"></span>
+        BNB Smart Chain
+      </p>
     </div>
-    <button id="connectBtn" class="btn-primary px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      Connect
-    </button>
+    <div class="flex items-center gap-2">
+      <button id="receiveBtn" class="icon-btn shrink-0" title="Receive RIN" aria-label="Receive RIN">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m0 0l-5-5m5 5l5-5"/></svg>
+      </button>
+      <button id="connectBtn" class="btn-primary px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span id="connectBtnLabel">Connect</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- no-wallet-detected banner (hidden until we know there's no injected provider) -->
+  <div id="noWalletBanner" class="hidden rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-200 space-y-2">
+    <p>We couldn't find a wallet in this browser. Open Rinanze inside a wallet app, or install a browser wallet.</p>
+    <div class="flex flex-wrap gap-2 pt-0.5">
+      <a id="mmDeepLink" href="#" class="btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium text-amber-100">Open in MetaMask</a>
+      <a id="twDeepLink" href="#" class="btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium text-amber-100">Open in Trust Wallet</a>
+      <a href="https://metamask.io/download/" target="_blank" rel="noreferrer" class="btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium text-amber-100">Install MetaMask ↗</a>
+    </div>
+  </div>
+
+  <!-- wrong-network banner -->
+  <div id="wrongNetBanner" class="hidden rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-200 flex items-center justify-between gap-3">
+    <span>Your wallet is on a different network than RIN.</span>
+    <button id="switchNetBtn" class="btn-ghost rounded-lg px-3 py-1.5 text-xs font-medium text-amber-100 shrink-0">Switch to BNB Chain</button>
   </div>
 
   <!-- balance -->
   <div class="bg-white/5 rounded-2xl p-5 text-center">
-    <div class="text-sm text-gray-400">Your RIN balance</div>
-    <div class="text-3xl font-bold mt-1" id="balanceDisplay">0.00</div>
-    <div class="text-xs text-gray-500 mt-1">≈ $0.00</div>
+    <div class="text-sm text-gray-400">Your <span id="symbolLabel1">RIN</span> balance</div>
+    <div class="font-display text-3xl font-bold mt-1 count-up" id="balanceDisplay">—</div>
+    <div class="text-xs text-gray-500 mt-1 font-mono" id="balanceUsd">Connect a wallet to see your balance</div>
+    <button id="addToWalletBtn" class="hidden mt-2.5 text-xs text-violet-300 hover:text-violet-200 underline decoration-dotted underline-offset-2">
+      + Add RIN to wallet
+    </button>
   </div>
 
   <!-- transfer -->
   <div class="space-y-3">
-    <input id="recipient" type="text" placeholder="Recipient address (0x...)" class="input-glass w-full rounded-xl px-4 py-3 text-sm" />
+    <input id="recipient" type="text" placeholder="Recipient address (0x…)" autocomplete="off" spellcheck="false" class="input-glass w-full rounded-xl px-4 py-3" />
     <div class="flex gap-2">
-      <input id="amount" type="text" placeholder="Amount (e.g. 100)" class="input-glass w-full rounded-xl px-4 py-3 text-sm" />
+      <div class="relative w-full">
+        <input id="amount" type="text" inputmode="decimal" placeholder="Amount (e.g. 100)" autocomplete="off" class="input-glass w-full rounded-xl px-4 py-3 pr-14" />
+        <button id="maxChip" class="max-chip">MAX</button>
+      </div>
       <button id="sendBtn" class="btn-primary shrink-0 px-6 py-3 rounded-xl text-sm font-medium disabled:opacity-50">Send</button>
     </div>
   </div>
 
-  <!-- trade button -->
-  <button id="tradeBtn" class="trade-btn w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition">
+  <!-- buy -->
+  <a id="tradeBtn" href="#" target="_blank" rel="noreferrer" class="btn-buy w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-    Trade on PancakeSwap
-  </button>
+    Buy on PancakeSwap ↗
+  </a>
 
-  <!-- admin panel (hidden) -->
-  <div id="adminPanel" class="hidden border-t border-white/10 pt-4 mt-4">
-    <h3 class="text-sm font-semibold text-amber-400 mb-2">⚡ Admin</h3>
+  <!-- my activity (only rendered when an Etherscan API key is configured) -->
+  <div id="activityPanel" class="hidden space-y-1">
+    <h3 class="text-xs uppercase tracking-wide text-gray-500 mb-1">Your recent activity</h3>
+    <div id="activityList" class="bg-white/5 rounded-2xl px-4"></div>
+  </div>
+
+  <!-- admin panel (hidden until owner/minter connects) -->
+  <div id="adminPanel" class="hidden border-t border-white/10 pt-4 space-y-3">
+    <h3 class="text-sm font-semibold flex items-center gap-1.5" style="color:var(--bnb)">⚡ Admin tools</h3>
     <div class="flex gap-2">
-      <input id="mintRecipient" type="text" placeholder="Mint to address" class="input-glass w-full rounded-xl px-4 py-3 text-sm" />
-      <input id="mintAmount" type="text" placeholder="Amount" class="input-glass w-1/3 rounded-xl px-4 py-3 text-sm" />
-      <button id="mintBtn" class="bg-amber-500 hover:bg-amber-600 text-black px-4 py-3 rounded-xl text-sm font-medium">Mint</button>
+      <input id="mintRecipient" type="text" placeholder="Mint to address" autocomplete="off" spellcheck="false" class="input-glass w-full rounded-xl px-4 py-3" />
+      <input id="mintAmount" type="text" inputmode="decimal" placeholder="Amount" autocomplete="off" class="input-glass w-28 shrink-0 rounded-xl px-4 py-3" />
+      <button id="mintBtn" class="shrink-0 px-4 py-3 rounded-xl text-sm font-medium text-black" style="background:var(--bnb)">Mint</button>
     </div>
+  </div>
+
+  <!-- footer: contract address -->
+  <div class="flex items-center justify-between text-xs text-gray-500 pt-1">
+    <button id="copyAddrBtn" class="font-mono hover:text-gray-300 flex items-center gap-1">
+      <span id="addrShort">…</span>
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+    </button>
+    <a id="explorerLink" href="#" target="_blank" rel="noreferrer" class="hover:text-gray-300 flex items-center gap-1">
+      View on BscScan
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+    </a>
   </div>
 </div>
 
-<!-- PancakeSwap modal -->
-<div id="swapModal" class="modal-overlay">
-  <div class="modal-content">
-    <button class="close-modal" onclick="closeSwap()">✕</button>
-    <iframe id="swapIframe" src="about:blank"></iframe>
+<!-- Receive modal -->
+<div id="receiveModal" class="modal-overlay">
+  <div class="modal-box">
+    <button class="modal-close" id="receiveModalClose">✕</button>
+    <h3 class="font-display text-lg font-semibold">Receive RIN</h3>
+    <p class="text-xs text-gray-400 mt-1 mb-4">Share this address or QR code to receive RIN on BNB Smart Chain.</p>
+    <div id="receiveQr" class="mx-auto w-fit rounded-xl overflow-hidden bg-white p-2"></div>
+    <button id="receiveCopyBtn" class="input-glass w-full rounded-xl px-3 py-2.5 mt-4 text-xs break-all hover:border-violet-400/50"></button>
+    <p id="receiveHint" class="text-xs text-gray-500 mt-3">Connect your wallet to show your receiving address.</p>
   </div>
 </div>
 
 <script>
-  // ----- CONFIG -----
+  // ================= CONFIG =================
   const PROXY_ADDRESS = "0xBdf9e9B29720389EeBf9b6D95a5077341E66114c";
-  const PANCAKE_SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${PROXY_ADDRESS}&chainId=56`;
+  const CHAIN_ID = 56;                       // BNB Smart Chain
+  const CHAIN_HEX = "0x" + CHAIN_ID.toString(16);
+  const EXPLORER = "https://bscscan.com";
+  const PUBLIC_RPC = "https://bsc-dataseed.binance.org/";
+  const PANCAKE_SWAP_URL = `https://pancakeswap.finance/swap?outputCurrency=${PROXY_ADDRESS}&chainId=${CHAIN_ID}`;
+  const DEXSCREENER_URL = `https://api.dexscreener.com/latest/dex/tokens/${PROXY_ADDRESS}`;
+  const TOKEN_LOGO_URL = "";   // optional — square PNG/SVG shown when adding RIN to a wallet
 
-  // Minimal ABI for balance, transfer, mint, owner, hasRole, MINTER_ROLE
-  const MIN_ABI = [
+  // Optional — powers the "Your recent activity" panel via Etherscan's multichain v2
+  // API (the same one BscScan runs on). Get a free key at bscscan.com/myapikey and it
+  // works across BscScan/Etherscan/Basescan etc. Leave blank to hide that panel.
+  const ETHERSCAN_API_KEY = "";
+  const ETHERSCAN_V2_BASE = "https://api.etherscan.io/v2/api";
+
+  const ABI = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)",
     "function balanceOf(address owner) view returns (uint256)",
     "function transfer(address to, uint256 amount) returns (bool)",
     "function mint(address to, uint256 amount)",
@@ -182,139 +376,446 @@
     "function MINTER_ROLE() view returns (bytes32)"
   ];
 
+  // ================= STATE =================
   let provider, signer, contract, userAddress;
+  let readContract = null;      // read-only, works before any wallet connects
+  let decimals = 18;
+  let symbol = "RIN";
+  let lastPriceUsd = null;
+  let pairAddress = null;
+  let chartLoaded = false;
 
-  // DOM refs
-  const connectBtn = document.getElementById('connectBtn');
-  const balanceEl = document.getElementById('balanceDisplay');
-  const recipientInput = document.getElementById('recipient');
-  const amountInput = document.getElementById('amount');
-  const sendBtn = document.getElementById('sendBtn');
-  const tradeBtn = document.getElementById('tradeBtn');
-  const adminPanel = document.getElementById('adminPanel');
-  const mintRecipient = document.getElementById('mintRecipient');
-  const mintAmount = document.getElementById('mintAmount');
-  const mintBtn = document.getElementById('mintBtn');
+  // ================= DOM =================
+  const $ = (id) => document.getElementById(id);
+  const connectBtn = $('connectBtn'), connectBtnLabel = $('connectBtnLabel');
+  const balanceEl = $('balanceDisplay'), balanceUsdEl = $('balanceUsd');
+  const recipientInput = $('recipient'), amountInput = $('amount'), sendBtn = $('sendBtn');
+  const tradeBtn = $('tradeBtn');
+  const adminPanel = $('adminPanel');
+  const mintRecipient = $('mintRecipient'), mintAmount = $('mintAmount'), mintBtn = $('mintBtn');
+  const noWalletBanner = $('noWalletBanner'), wrongNetBanner = $('wrongNetBanner'), switchNetBtn = $('switchNetBtn');
+  const addrShort = $('addrShort'), copyAddrBtn = $('copyAddrBtn'), explorerLink = $('explorerLink');
+  const tickerBody = $('tickerBody'), liveDot = $('liveDot'), symbolLabel1 = $('symbolLabel1');
+  const statsRow = $('statsRow'), statMcap = $('statMcap'), statLiq = $('statLiq'), statVol = $('statVol');
+  const chartToggle = $('chartToggle'), chartToggleLabel = $('chartToggleLabel'), chartContainer = $('chartContainer');
+  const addToWalletBtn = $('addToWalletBtn'), maxChip = $('maxChip');
+  const receiveBtn = $('receiveBtn'), receiveModal = $('receiveModal'), receiveModalClose = $('receiveModalClose');
+  const receiveQr = $('receiveQr'), receiveCopyBtn = $('receiveCopyBtn'), receiveHint = $('receiveHint');
+  const activityPanel = $('activityPanel'), activityList = $('activityList');
 
-  // ----- CONNECT -----
+  // ================= TOASTS (replaces blocking alert()) =================
+  function toast(message, kind = 'info', timeout = 5000) {
+    const el = document.createElement('div');
+    el.className = `toast ${kind}`;
+    el.textContent = message;
+    $('toastStack').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 250); }, timeout);
+  }
+
+  // Turn raw provider/RPC errors into something a person can act on.
+  function friendlyError(e) {
+    const code = e?.code;
+    const msg = (e?.reason || e?.data?.message || e?.message || String(e) || '').toString();
+    if (code === 4001 || code === 'ACTION_REJECTED') return 'Request was rejected in your wallet.';
+    if (code === 4902) return 'BNB Smart Chain isn\'t added to your wallet yet — try Connect again.';
+    if (/insufficient funds/i.test(msg)) return 'Insufficient BNB to cover gas for this transaction.';
+    if (/user rejected/i.test(msg)) return 'Request was rejected in your wallet.';
+    if (/could not decode result data|BAD_DATA|CALL_EXCEPTION/i.test(msg)) return "Couldn't read that from the contract — it may not support this action.";
+    if (/underlying network changed/i.test(msg)) return 'Network changed mid-request — try again.';
+    return msg.length > 140 ? 'Something went wrong. Please try again.' : msg;
+  }
+
+  addrShort.textContent = PROXY_ADDRESS.slice(0, 6) + '…' + PROXY_ADDRESS.slice(-4);
+  explorerLink.href = `${EXPLORER}/token/${PROXY_ADDRESS}`;
+  tradeBtn.href = PANCAKE_SWAP_URL;
+
+  copyAddrBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(PROXY_ADDRESS);
+    toast('Address copied', 'success', 2000);
+  });
+
+  // Deep links so mobile visitors without a wallet extension can open the page
+  // inside their wallet app's own browser instead of hitting a dead end.
+  (function setupDeepLinks() {
+    const here = window.location.href.replace(/^https?:\/\//, '');
+    $('mmDeepLink').href = `https://metamask.app.link/dapp/${here}`;
+    $('twDeepLink').href = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`;
+  })();
+
+  // ================= READ-ONLY BOOTSTRAP (no wallet needed) =================
+  async function bootstrapReadOnly() {
+    try {
+      const ro = new ethers.providers.JsonRpcProvider(PUBLIC_RPC);
+      readContract = new ethers.Contract(PROXY_ADDRESS, ABI, ro);
+      const [n, s, d] = await Promise.all([
+        readContract.name().catch(() => 'Rinanze'),
+        readContract.symbol().catch(() => 'RIN'),
+        readContract.decimals().catch(() => 18),
+      ]);
+      symbol = s || 'RIN';
+      decimals = Number(d ?? 18);
+      symbolLabel1.textContent = symbol;
+    } catch (e) {
+      console.warn('Read-only bootstrap failed:', e);
+    }
+  }
+
+  function abbreviateUsd(n) {
+    if (n == null || isNaN(n)) return '—';
+    if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+    return '$' + n.toFixed(0);
+  }
+
+  async function refreshTicker() {
+    try {
+      const res = await fetch(DEXSCREENER_URL);
+      const data = await res.json();
+      const pairs = (data.pairs || []).filter(p => p.chainId === 'bsc');
+      if (!pairs.length) {
+        tickerBody.innerHTML = '<span class="text-gray-500">not listed for trading yet</span>';
+        liveDot.style.background = 'var(--ink-dim)';
+        statsRow.classList.add('hidden');
+        chartToggle.classList.add('hidden');
+        return;
+      }
+      pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0));
+      const top = pairs[0];
+      pairAddress = top.pairAddress;
+      lastPriceUsd = parseFloat(top.priceUsd);
+      const change = top.priceChange?.h24;
+      const up = change >= 0;
+      tickerBody.innerHTML = `
+        <span>$${lastPriceUsd < 0.01 ? lastPriceUsd.toPrecision(3) : lastPriceUsd.toFixed(4)}</span>
+        <span style="color:${up ? 'var(--up)' : 'var(--down)'}">${up ? '▲' : '▼'} ${Math.abs(change ?? 0).toFixed(1)}%</span>
+      `;
+      statMcap.textContent = abbreviateUsd(top.marketCap || top.fdv);
+      statLiq.textContent = abbreviateUsd(top.liquidity?.usd);
+      statVol.textContent = abbreviateUsd(top.volume?.h24);
+      statsRow.classList.remove('hidden');
+      chartToggle.classList.remove('hidden');
+      updateUsdEstimate();
+    } catch {
+      tickerBody.innerHTML = '<span class="text-gray-500">price unavailable</span>';
+    }
+  }
+
+  chartToggle.addEventListener('click', () => {
+    const opening = chartContainer.classList.contains('hidden');
+    chartContainer.classList.toggle('hidden');
+    chartToggle.classList.toggle('open');
+    chartToggleLabel.textContent = opening ? 'Hide price chart' : 'Show price chart';
+    if (opening && !chartLoaded && pairAddress) {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'chartFrame';
+      iframe.src = `https://dexscreener.com/bsc/${pairAddress}?embed=1&theme=dark&trades=0&info=0`;
+      chartContainer.appendChild(iframe);
+      chartLoaded = true;
+    }
+  });
+
+  function updateUsdEstimate() {
+    const raw = balanceEl.dataset.raw;
+    if (raw && lastPriceUsd != null) {
+      const human = parseFloat(ethers.utils.formatUnits(raw, decimals));
+      balanceUsdEl.textContent = `≈ $${(human * lastPriceUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    }
+  }
+
+  // ================= WALLET CONNECT =================
+  function hasInjectedWallet() { return typeof window.ethereum !== 'undefined'; }
+
   async function connectWallet() {
-    if (typeof window.ethereum === 'undefined') {
-      alert('Please open this page in a Web3 wallet (Trust Wallet / MetaMask).');
+    if (!hasInjectedWallet()) {
+      noWalletBanner.classList.remove('hidden');
       return;
     }
+    noWalletBanner.classList.add('hidden');
+    connectBtn.disabled = true;
+    const original = connectBtnLabel.textContent;
+    connectBtnLabel.innerHTML = '<span class="spinner"></span>';
     try {
-      await window.ethereum.request({ method: 'eth_requestAccounts' });
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-      signer = provider.getSigner();
-      userAddress = await signer.getAddress();
-      connectBtn.innerHTML = `${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
-      connectBtn.disabled = true;
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      if (!accounts?.length) throw new Error('No account was returned. Unlock your wallet and try again.');
 
-      contract = new ethers.Contract(PROXY_ADDRESS, MIN_ABI, signer);
-      await updateBalance();
-      await checkAdmin();
+      provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+      signer = provider.getSigner();
+      userAddress = accounts[0];
+
+      await ensureCorrectNetwork();
+
+      contract = new ethers.Contract(PROXY_ADDRESS, ABI, signer);
+      connectBtnLabel.textContent = userAddress.slice(0, 6) + '…' + userAddress.slice(-4);
+      connectBtn.disabled = false;
+      addToWalletBtn.classList.remove('hidden');
+      refreshReceiveModal();
+
+      await Promise.all([updateBalance(), checkAdmin(), refreshActivity()]);
     } catch (e) {
       console.error(e);
-      alert('Connection failed.');
+      toast(friendlyError(e), 'error');
+      connectBtnLabel.textContent = original;
+      connectBtn.disabled = false;
     }
   }
 
-  // ----- BALANCE -----
+  async function ensureCorrectNetwork() {
+    const net = await provider.getNetwork();
+    if (net.chainId === CHAIN_ID) {
+      wrongNetBanner.classList.add('hidden');
+      return;
+    }
+    wrongNetBanner.classList.remove('hidden');
+    await switchChain();
+  }
+
+  async function switchChain() {
+    try {
+      await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_HEX }] });
+    } catch (e) {
+      if (e?.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: CHAIN_HEX,
+              chainName: 'BNB Smart Chain',
+              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+              rpcUrls: [PUBLIC_RPC],
+              blockExplorerUrls: [EXPLORER],
+            }],
+          });
+        } catch {
+          toast('Add BNB Smart Chain to your wallet manually, then reconnect.', 'error');
+          return;
+        }
+      } else if (e?.code === 4001) {
+        toast('Network switch was rejected.', 'error');
+        return;
+      }
+    }
+    wrongNetBanner.classList.add('hidden');
+  }
+
+  switchNetBtn.addEventListener('click', switchChain);
+
+  // ================= BALANCE =================
   async function updateBalance() {
     if (!contract || !userAddress) return;
-    const raw = await contract.balanceOf(userAddress);
-    const formatted = ethers.utils.formatUnits(raw, 18);
-    balanceEl.textContent = formatted;
+    try {
+      const raw = await contract.balanceOf(userAddress);
+      balanceEl.dataset.raw = raw.toString();
+      balanceEl.textContent = formatHuman(raw);
+      updateUsdEstimate();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  // ----- ADMIN CHECK -----
+  function formatHuman(raw) {
+    const s = ethers.utils.formatUnits(raw, decimals);
+    const [i, f = ''] = s.split('.');
+    const withCommas = i.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const trimmed = f.slice(0, 4).replace(/0+$/, '');
+    return trimmed ? `${withCommas}.${trimmed}` : withCommas;
+  }
+
+  // ================= ADD TO WALLET =================
+  addToWalletBtn.addEventListener('click', async () => {
+    if (!hasInjectedWallet()) return;
+    try {
+      await window.ethereum.request({
+        method: 'wallet_watchAsset',
+        params: { type: 'ERC20', options: { address: PROXY_ADDRESS, symbol, decimals, image: TOKEN_LOGO_URL || undefined } },
+      });
+    } catch (e) {
+      if (e?.code !== 4001) toast(friendlyError(e), 'error');
+    }
+  });
+
+  // ================= MAX CHIP =================
+  maxChip.addEventListener('click', () => {
+    const raw = balanceEl.dataset.raw;
+    if (!raw) return toast('Connect your wallet first.', 'error');
+    amountInput.value = ethers.utils.formatUnits(raw, decimals);
+  });
+
+  // ================= RECEIVE MODAL =================
+  function refreshReceiveModal() {
+    if (!userAddress) return;
+    receiveHint.classList.add('hidden');
+    receiveCopyBtn.textContent = userAddress;
+    receiveQr.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    receiveQr.appendChild(canvas);
+    QRCode.toCanvas(canvas, userAddress, { width: 200, margin: 1 }, (err) => {
+      if (err) receiveQr.innerHTML = '<p class="text-xs text-red-400 p-4">Couldn\'t generate a QR code.</p>';
+    });
+  }
+
+  receiveBtn.addEventListener('click', () => {
+    if (!userAddress) {
+      receiveHint.classList.remove('hidden');
+      receiveQr.innerHTML = '';
+      receiveCopyBtn.textContent = '';
+    }
+    receiveModal.classList.add('show');
+  });
+  receiveModalClose.addEventListener('click', () => receiveModal.classList.remove('show'));
+  receiveModal.addEventListener('click', (e) => { if (e.target === receiveModal) receiveModal.classList.remove('show'); });
+  receiveCopyBtn.addEventListener('click', () => {
+    if (!userAddress) return;
+    navigator.clipboard.writeText(userAddress);
+    toast('Address copied', 'success', 2000);
+  });
+
+  // ================= MY ACTIVITY (optional, needs ETHERSCAN_API_KEY) =================
+  async function refreshActivity() {
+    if (!ETHERSCAN_API_KEY || !userAddress) { activityPanel.classList.add('hidden'); return; }
+    try {
+      const url = new URL(ETHERSCAN_V2_BASE);
+      url.searchParams.set('chainid', String(CHAIN_ID));
+      url.searchParams.set('module', 'account');
+      url.searchParams.set('action', 'tokentx');
+      url.searchParams.set('contractaddress', PROXY_ADDRESS);
+      url.searchParams.set('address', userAddress);
+      url.searchParams.set('page', '1');
+      url.searchParams.set('offset', '5');
+      url.searchParams.set('sort', 'desc');
+      url.searchParams.set('apikey', ETHERSCAN_API_KEY);
+      const res = await fetch(url.toString());
+      const json = await res.json();
+      const txs = Array.isArray(json.result) ? json.result : [];
+      if (!txs.length) {
+        activityList.innerHTML = '<div class="activity-row text-gray-500">No RIN transfers yet.</div>';
+        activityPanel.classList.remove('hidden');
+        return;
+      }
+      activityList.innerHTML = txs.map((tx) => {
+        const out = tx.from.toLowerCase() === userAddress.toLowerCase();
+        const amt = formatHuman(tx.value);
+        const when = new Date(Number(tx.timeStamp) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        return `
+          <div class="activity-row">
+            <div class="flex items-center gap-2">
+              <span class="activity-dir ${out ? 'out' : 'in'}">${out ? 'SENT' : 'RECEIVED'}</span>
+              <a href="${EXPLORER}/tx/${tx.hash}" target="_blank" rel="noreferrer" class="text-gray-500 font-mono hover:text-gray-300">${when}</a>
+            </div>
+            <span class="font-mono">${out ? '-' : '+'}${amt} ${symbol}</span>
+          </div>`;
+      }).join('');
+      activityPanel.classList.remove('hidden');
+    } catch (e) {
+      console.warn('Activity fetch failed:', e);
+      activityPanel.classList.add('hidden');
+    }
+  }
+
+  // ================= ADMIN CHECK =================
   async function checkAdmin() {
     try {
-      const owner = await contract.owner();
-      const minterRole = await contract.MINTER_ROLE();
-      const isOwner = owner.toLowerCase() === userAddress.toLowerCase();
-      const isMinter = await contract.hasRole(minterRole, userAddress);
-      if (isOwner || isMinter) {
-        adminPanel.classList.remove('hidden');
-      }
-    } catch (_) { /* ignore */ }
+      const [owner, minterRole] = await Promise.all([
+        contract.owner().catch(() => null),
+        contract.MINTER_ROLE().catch(() => null),
+      ]);
+      const isOwner = owner && owner.toLowerCase() === userAddress.toLowerCase();
+      const isMinter = minterRole ? await contract.hasRole(minterRole, userAddress).catch(() => false) : false;
+      adminPanel.classList.toggle('hidden', !(isOwner || isMinter));
+    } catch {
+      adminPanel.classList.add('hidden');
+    }
   }
 
-  // ----- SEND -----
+  // ================= SEND =================
   async function sendTokens() {
+    if (!contract) return toast('Connect your wallet first.', 'error');
     const to = recipientInput.value.trim();
     const amount = amountInput.value.trim();
-    if (!ethers.utils.isAddress(to)) return alert('Invalid recipient address.');
-    if (!amount || isNaN(amount)) return alert('Invalid amount.');
+    if (!ethers.utils.isAddress(to)) return toast('Recipient address is invalid.', 'error');
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return toast('Enter a valid amount.', 'error');
+
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner"></span>';
     try {
-      sendBtn.disabled = true;
-      sendBtn.innerHTML = '<span class="spinner"></span>';
-      const wei = ethers.utils.parseUnits(amount, 18);
+      const wei = ethers.utils.parseUnits(amount, decimals);
       const tx = await contract.transfer(to, wei);
-      alert('Transfer sent – waiting for confirmation...');
+      toast('Transfer sent — waiting for confirmation…');
       await tx.wait();
-      alert('Transfer successful!');
+      toast(`Sent ${amount} ${symbol}`, 'success');
       await updateBalance();
       recipientInput.value = '';
       amountInput.value = '';
     } catch (e) {
-      alert('Transfer failed: ' + e.message);
+      console.error(e);
+      toast(friendlyError(e), 'error');
     } finally {
       sendBtn.disabled = false;
       sendBtn.textContent = 'Send';
     }
   }
 
-  // ----- MINT -----
+  // ================= MINT =================
   async function mintTokens() {
+    if (!contract) return toast('Connect your wallet first.', 'error');
     const to = mintRecipient.value.trim();
     const amount = mintAmount.value.trim();
-    if (!ethers.utils.isAddress(to)) return alert('Invalid mint recipient.');
-    if (!amount || isNaN(amount)) return alert('Invalid amount.');
+    if (!ethers.utils.isAddress(to)) return toast('Mint recipient address is invalid.', 'error');
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return toast('Enter a valid amount.', 'error');
+
+    mintBtn.disabled = true;
+    mintBtn.innerHTML = '<span class="spinner"></span>';
     try {
-      mintBtn.disabled = true;
-      mintBtn.innerHTML = '<span class="spinner"></span>';
-      const wei = ethers.utils.parseUnits(amount, 18);
+      const wei = ethers.utils.parseUnits(amount, decimals);
       const tx = await contract.mint(to, wei);
-      alert('Mint sent – waiting for confirmation...');
+      toast('Mint sent — waiting for confirmation…');
       await tx.wait();
-      alert('Mint successful!');
+      toast(`Minted ${amount} ${symbol}`, 'success');
       mintRecipient.value = '';
       mintAmount.value = '';
       await updateBalance();
     } catch (e) {
-      alert('Mint failed: ' + e.message);
+      console.error(e);
+      toast(friendlyError(e), 'error');
     } finally {
       mintBtn.disabled = false;
       mintBtn.textContent = 'Mint';
     }
   }
 
-  // ----- TRADE MODAL -----
-  function openSwap() {
-    document.getElementById('swapModal').style.display = 'flex';
-    document.getElementById('swapIframe').src = PANCAKE_SWAP_URL;
-  }
-
-  function closeSwap() {
-    document.getElementById('swapModal').style.display = 'none';
-    document.getElementById('swapIframe').src = 'about:blank';
-  }
-
-  // ----- EVENT BINDINGS -----
+  // ================= EVENTS =================
   connectBtn.addEventListener('click', connectWallet);
   sendBtn.addEventListener('click', sendTokens);
   mintBtn.addEventListener('click', mintTokens);
-  tradeBtn.addEventListener('click', openSwap);
 
-  // Auto‑connect if already approved (e.g., page reload)
-  if (window.ethereum) {
-    window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
+  if (hasInjectedWallet()) {
+    window.ethereum.request({ method: 'eth_accounts' }).then((accounts) => {
       if (accounts.length > 0) connectWallet();
     }).catch(() => {});
-    window.ethereum.on('accountsChanged', () => window.location.reload());
-    window.ethereum.on('chainChanged', () => window.location.reload());
+
+    // Update state in place instead of a jarring full-page reload.
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (!accounts.length) {
+        userAddress = null; contract = null;
+        connectBtnLabel.textContent = 'Connect';
+        balanceEl.textContent = '—';
+        balanceEl.removeAttribute('data-raw');
+        balanceUsdEl.textContent = 'Connect a wallet to see your balance';
+        adminPanel.classList.add('hidden');
+        addToWalletBtn.classList.add('hidden');
+        activityPanel.classList.add('hidden');
+      } else {
+        connectWallet();
+      }
+    });
+    window.ethereum.on('chainChanged', () => {
+      if (provider) connectWallet();
+    });
   }
+
+  // ================= BOOT =================
+  bootstrapReadOnly().then(refreshTicker);
+  setInterval(refreshTicker, 30000);
 </script>
 </body>
 </html>
